@@ -2,24 +2,29 @@ import pandas as pd
 import os
 from datetime import datetime
 
+
+
 def generate_dashboard_html():
     """Generate enhanced portfolio dashboard with stocks, options, and performance"""
 
+
     print("="*60)
-    print("  PORTFOLIO DASHBOARD GENERATOR v2.0")
+    print("  PORTFOLIO DASHBOARD GENERATOR v2.1")
     print("="*60)
     print()
+
 
     # Read data files
     stocks_df = pd.read_csv('portfolio_data.csv')
 
-    # Try to read optional files
+
     try:
         options_df = pd.read_csv('options_data.csv')
         has_options = True
     except:
         options_df = pd.DataFrame()
         has_options = False
+
 
     try:
         performance_df = pd.read_csv('performance_data.csv')
@@ -28,12 +33,22 @@ def generate_dashboard_html():
         performance_df = pd.DataFrame()
         has_performance = False
 
+
     try:
         annual_df = pd.read_csv('annual_returns.csv')
         has_annual = True
     except:
         annual_df = pd.DataFrame()
         has_annual = False
+
+
+    try:
+        instrument_df = pd.read_csv('instrument_performance.csv')
+        has_instrument = True
+    except:
+        instrument_df = pd.DataFrame()
+        has_instrument = False
+
 
     print(f"✅ Loaded {len(stocks_df)} stocks")
     if has_options:
@@ -42,30 +57,40 @@ def generate_dashboard_html():
         print(f"✅ Loaded {len(performance_df)} months of performance data")
     if has_annual:
         print(f"✅ Loaded {len(annual_df)} years of annual returns")
+    if has_instrument:
+        print(f"✅ Loaded {len(instrument_df)} months of instrument breakdown")
     print()
+
 
     # Calculate summary stats
     total_value = stocks_df['Market Value'].sum()
-    total_pl = stocks_df['Unrealized P&L'].sum()
+    total_pl = stocks_df['Unrealized PL'].sum()
     total_cost = total_value - total_pl
     total_return_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
     num_positions = len(stocks_df)
 
-    # Options stats
+
     if has_options:
         options_premium = abs(options_df['Cost Basis'].sum())
         options_value = abs(options_df['Market Value'].sum())
-        options_pl = options_df['Unrealized P&L'].sum()
+        options_pl = options_df['Unrealized PL'].sum()
         num_options = len(options_df)
 
-    # Performance stats
+
     if has_performance and not performance_df.empty:
+        # ✅ FIX: Sort by date before reading values
+        performance_df = pd.to_datetime(performance_df['Date'].values, infer_datetime_format=True)
+        performance_df = pd.read_csv('performance_data.csv')
+        performance_df['Date'] = pd.to_datetime(performance_df['Date'])
+        performance_df = performance_df.sort_values('Date').reset_index(drop=True)
+        performance_df['Date'] = performance_df['Date'].dt.strftime('%Y-%m-%d')
+
         inception_return = performance_df['Portfolio_Cumulative'].iloc[-1]
         sp500_return = performance_df['SP500_Cumulative'].iloc[-1]
         outperformance = inception_return - sp500_return
         inception_date = pd.to_datetime(performance_df['Date'].iloc[0]).strftime('%B %Y')
 
-    # Generate HTML
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -74,24 +99,14 @@ def generate_dashboard_html():
     <title>Portfolio Dashboard - Denis Lecchi</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px;
             color: #333;
         }}
-
-        .container {{
-            max-width: 1400px;
-            margin: 0 auto;
-        }}
-
+        .container {{ max-width: 1400px; margin: 0 auto; }}
         .header {{
             background: white;
             padding: 30px;
@@ -99,34 +114,20 @@ def generate_dashboard_html():
             margin-bottom: 20px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
-
-        .header h1 {{
-            font-size: 2em;
-            margin-bottom: 5px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }}
-
-        .header .subtitle {{
-            color: #666;
-            font-size: 0.9em;
-        }}
-
+        .header h1 {{ font-size: 2em; margin-bottom: 5px; display: flex; align-items: center; gap: 10px; }}
+        .header .subtitle {{ color: #666; font-size: 0.9em; }}
         .stats-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-bottom: 20px;
         }}
-
         .stat-card {{
             background: white;
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
-
         .stat-card .label {{
             font-size: 0.85em;
             color: #666;
@@ -134,21 +135,9 @@ def generate_dashboard_html():
             letter-spacing: 0.5px;
             margin-bottom: 8px;
         }}
-
-        .stat-card .value {{
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #333;
-        }}
-
-        .stat-card .value.positive {{
-            color: #10b981;
-        }}
-
-        .stat-card .value.negative {{
-            color: #ef4444;
-        }}
-
+        .stat-card .value {{ font-size: 1.8em; font-weight: bold; color: #333; }}
+        .stat-card .value.positive {{ color: #10b981; }}
+        .stat-card .value.negative {{ color: #ef4444; }}
         .section {{
             background: white;
             padding: 25px;
@@ -156,18 +145,8 @@ def generate_dashboard_html():
             margin-bottom: 20px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
-
-        .section h2 {{
-            font-size: 1.5em;
-            margin-bottom: 20px;
-            color: #333;
-        }}
-
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-        }}
-
+        .section h2 {{ font-size: 1.5em; margin-bottom: 20px; color: #333; }}
+        table {{ width: 100%; border-collapse: collapse; }}
         th {{
             background: #f9fafb;
             padding: 12px;
@@ -179,48 +158,16 @@ def generate_dashboard_html():
             letter-spacing: 0.5px;
             border-bottom: 2px solid #e5e7eb;
         }}
-
-        td {{
-            padding: 12px;
-            border-bottom: 1px solid #f3f4f6;
-        }}
-
-        tr:hover {{
-            background: #f9fafb;
-        }}
-
-        .symbol {{
-            font-weight: bold;
-            color: #667eea;
-            font-size: 1.1em;
-        }}
-
-        .positive {{
-            color: #10b981;
-        }}
-
-        .negative {{
-            color: #ef4444;
-        }}
-
-        .chart-container {{
-            width: 100%;
-            height: 400px;
-            margin: 20px 0;
-        }}
-
+        td {{ padding: 12px; border-bottom: 1px solid #f3f4f6; }}
+        tr:hover {{ background: #f9fafb; }}
+        .symbol {{ font-weight: bold; color: #667eea; font-size: 1.1em; }}
+        .positive {{ color: #10b981; }}
+        .negative {{ color: #ef4444; }}
+        .chart-container {{ width: 100%; height: 400px; margin: 20px 0; }}
         @media (max-width: 768px) {{
-            .stats-grid {{
-                grid-template-columns: 1fr;
-            }}
-
-            table {{
-                font-size: 0.9em;
-            }}
-
-            th, td {{
-                padding: 8px;
-            }}
+            .stats-grid {{ grid-template-columns: 1fr; }}
+            table {{ font-size: 0.9em; }}
+            th, td {{ padding: 8px; }}
         }}
     </style>
 </head>
@@ -232,7 +179,8 @@ def generate_dashboard_html():
         </div>
 """
 
-    # Performance Since Inception Section
+
+    # Performance Since Inception Stats
     if has_performance and not performance_df.empty:
         html += f"""
         <div class="stats-grid">
@@ -252,6 +200,7 @@ def generate_dashboard_html():
         </div>
 """
 
+
     # Current Portfolio Stats
     html += f"""
         <div class="stats-grid">
@@ -265,7 +214,7 @@ def generate_dashboard_html():
             </div>
             <div class="stat-card">
                 <div class="label">Total Return</div>
-                <div class="value {'positive' if total_return_pct >= 0 else 'negative'}">+{total_return_pct:.2f}%</div>
+                <div class="value {'positive' if total_return_pct >= 0 else 'negative'}">{total_return_pct:+.2f}%</div>
             </div>
             <div class="stat-card">
                 <div class="label">Positions</div>
@@ -274,12 +223,13 @@ def generate_dashboard_html():
         </div>
 """
 
+
     # Performance Chart
     if has_performance and not performance_df.empty:
-        # Prepare chart data
         dates = performance_df['Date'].tolist()
         portfolio_cumulative = performance_df['Portfolio_Cumulative'].tolist()
         sp500_cumulative = performance_df['SP500_Cumulative'].tolist()
+
 
         html += f"""
         <div class="section">
@@ -287,10 +237,12 @@ def generate_dashboard_html():
             <div id="performanceChart" class="chart-container"></div>
         </div>
 
+
         <script>
             var dates = {dates};
             var portfolioReturns = {portfolio_cumulative};
             var sp500Returns = {sp500_cumulative};
+
 
             var trace1 = {{
                 x: dates,
@@ -301,6 +253,7 @@ def generate_dashboard_html():
                 line: {{color: '#667eea', width: 3}}
             }};
 
+
             var trace2 = {{
                 x: dates,
                 y: sp500Returns,
@@ -310,17 +263,100 @@ def generate_dashboard_html():
                 line: {{color: '#10b981', width: 2, dash: 'dot'}}
             }};
 
+
             var layout = {{
-                xaxis: {{title: 'Date'}},
+                xaxis: {{title: 'Date', type: 'date'}},
                 yaxis: {{title: 'Cumulative Return (%)', tickformat: '.1f'}},
                 hovermode: 'x unified',
                 margin: {{t: 20, b: 40, l: 60, r: 20}},
                 legend: {{x: 0.02, y: 0.98}}
             }};
 
+
             Plotly.newPlot('performanceChart', [trace1, trace2], layout, {{responsive: true}});
         </script>
 """
+
+
+    # ── Instrument Breakdown Chart ──────────────────────────────────────
+    if has_instrument and not instrument_df.empty:
+        # ✅ FIX: Sort by date
+        instrument_df['Date'] = pd.to_datetime(instrument_df['Date'])
+        instrument_df = instrument_df.sort_values('Date').reset_index(drop=True)
+        instrument_df['Date'] = instrument_df['Date'].dt.strftime('%Y-%m-%d')
+
+        inst_dates   = instrument_df['Date'].tolist()
+        inst_etfs    = instrument_df['ETFs'].tolist()
+        inst_options = instrument_df['Options'].tolist()
+        inst_stocks  = instrument_df['Stocks'].tolist()
+        inst_cash    = instrument_df['Cash'].tolist()
+
+
+        html += f"""
+        <div class="section">
+            <h2>🧩 Monthly Return by Instrument</h2>
+            <div id="instrumentChart" class="chart-container"></div>
+        </div>
+
+
+        <script>
+            var instDates   = {inst_dates};
+            var instETFs    = {inst_etfs};
+            var instOptions = {inst_options};
+            var instStocks  = {inst_stocks};
+            var instCash    = {inst_cash};
+
+
+            var traceStocks = {{
+                x: instDates,
+                y: instStocks,
+                name: 'Stocks',
+                type: 'bar',
+                marker: {{color: '#667eea'}}
+            }};
+
+
+            var traceOptions = {{
+                x: instDates,
+                y: instOptions,
+                name: 'Options',
+                type: 'bar',
+                marker: {{color: '#764ba2'}}
+            }};
+
+
+            var traceETFs = {{
+                x: instDates,
+                y: instETFs,
+                name: 'ETFs',
+                type: 'bar',
+                marker: {{color: '#2dd4bf'}}
+            }};
+
+
+            var traceCash = {{
+                x: instDates,
+                y: instCash,
+                name: 'Cash',
+                type: 'bar',
+                marker: {{color: '#f59e0b'}}
+            }};
+
+
+            var instLayout = {{
+                barmode: 'relative',
+                xaxis: {{title: 'Date', type: 'date'}},
+                yaxis: {{title: 'Monthly Return (%)', tickformat: '.2f'}},
+                hovermode: 'x unified',
+                margin: {{t: 20, b: 40, l: 60, r: 20}},
+                legend: {{x: 0.02, y: 0.98}}
+            }};
+
+
+            Plotly.newPlot('instrumentChart', [traceStocks, traceOptions, traceETFs, traceCash], instLayout, {{responsive: true}});
+        </script>
+"""
+
 
     # Annual Returns Table
     if has_annual and not annual_df.empty:
@@ -338,13 +374,11 @@ def generate_dashboard_html():
                 </thead>
                 <tbody>
 """
-
         for _, row in annual_df.sort_values('Year', ascending=False).iterrows():
             year = int(row['Year'])
             port_ret = row['Portfolio_Return']
             sp_ret = row['SP500_Return']
             outperf = port_ret - sp_ret
-
             html += f"""
                     <tr>
                         <td><strong>{year}</strong></td>
@@ -353,12 +387,12 @@ def generate_dashboard_html():
                         <td class="{'positive' if outperf >= 0 else 'negative'}">{outperf:+.2f}%</td>
                     </tr>
 """
-
         html += """
                 </tbody>
             </table>
         </div>
 """
+
 
     # Stock Holdings Table
     html += """
@@ -377,26 +411,24 @@ def generate_dashboard_html():
                 </thead>
                 <tbody>
 """
-
     for _, row in stocks_df.sort_values('Market Value', ascending=False).iterrows():
-        return_pct = (row['Unrealized P&L'] / (row['Market Value'] - row['Unrealized P&L']) * 100) if (row['Market Value'] - row['Unrealized P&L']) > 0 else 0
-
+        return_pct = (row['Unrealized PL'] / (row['Market Value'] - row['Unrealized PL']) * 100) if (row['Market Value'] - row['Unrealized PL']) > 0 else 0
         html += f"""
                     <tr>
                         <td class="symbol">{row['Symbol']}</td>
                         <td>{row['Quantity']:.0f}</td>
                         <td>${row['Cost Basis']:,.2f}</td>
                         <td>${row['Market Value']:,.2f}</td>
-                        <td class="{'positive' if row['Unrealized P&L'] >= 0 else 'negative'}">${row['Unrealized P&L']:+,.2f}</td>
+                        <td class="{'positive' if row['Unrealized PL'] >= 0 else 'negative'}">${row['Unrealized PL']:+,.2f}</td>
                         <td class="{'positive' if return_pct >= 0 else 'negative'}">{return_pct:+.2f}%</td>
                     </tr>
 """
-
     html += """
                 </tbody>
             </table>
         </div>
 """
+
 
     # Options Section
     if has_options and not options_df.empty:
@@ -421,7 +453,6 @@ def generate_dashboard_html():
                     <div class="value {'positive' if options_pl >= 0 else 'negative'}">${options_pl:+,.2f}</div>
                 </div>
             </div>
-
             <table>
                 <thead>
                     <tr>
@@ -437,10 +468,8 @@ def generate_dashboard_html():
                 </thead>
                 <tbody>
 """
-
-        for _, row in options_df.sort_values('Unrealized P&L', ascending=False).iterrows():
+        for _, row in options_df.sort_values('Unrealized PL', ascending=False).iterrows():
             contracts = abs(int(row['Quantity']))
-
             html += f"""
                     <tr>
                         <td class="symbol">{row['Underlying']}</td>
@@ -450,15 +479,15 @@ def generate_dashboard_html():
                         <td>{contracts}</td>
                         <td>${abs(row['Cost Basis']):,.2f}</td>
                         <td>${abs(row['Market Value']):,.2f}</td>
-                        <td class="{'positive' if row['Unrealized P&L'] >= 0 else 'negative'}">${row['Unrealized P&L']:+,.2f}</td>
+                        <td class="{'positive' if row['Unrealized PL'] >= 0 else 'negative'}">${row['Unrealized PL']:+,.2f}</td>
                     </tr>
 """
-
         html += """
                 </tbody>
             </table>
         </div>
 """
+
 
     # Footer
     html += """
@@ -467,15 +496,18 @@ def generate_dashboard_html():
 </html>
 """
 
-    # Write HTML file
+
     with open('index.html', 'w', encoding='utf-8') as f:
         f.write(html)
+
 
     print("✅ Generated: index.html")
     print("\n" + "="*60)
     print("SUCCESS! Dashboard created.")
     print("="*60)
     print("\nOpen index.html in your browser to view the dashboard!")
+
+
 
 if __name__ == "__main__":
     generate_dashboard_html()
